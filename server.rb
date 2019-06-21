@@ -14,6 +14,11 @@ def authenticated?
   session[:access_token]
 end
 
+def logout
+  session[:access_token] = nil
+  redirect '/login'
+end
+
 get '/login' do
   if authenticated?
     redirect '/dashboard'
@@ -33,8 +38,7 @@ get '/dashboard' do
     # invalidate the token stored in the session and redirect to
     # login page so that the user can start the OAuth flow again
 
-    session[:access_token] = nil
-    redirect '/login'
+    logout
   end
 
   # get a user using the valid token
@@ -104,8 +108,7 @@ get '/callback' do
 end
 
 post '/logout' do
-  session[:access_token] = nil
-  redirect '/login'
+  logout
 end
 
 get '*' do
