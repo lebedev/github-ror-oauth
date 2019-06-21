@@ -71,6 +71,11 @@ get '/callback' do
   redirect '/dashboard'
 end
 
+post '/logout' do
+  session[:access_token] = nil
+  redirect '/login'
+end
+
 get '*' do
   if authenticated?
     redirect '/dashboard'
