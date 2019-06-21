@@ -1,6 +1,9 @@
 require 'sinatra'
+require 'sinatra/activerecord'
 require 'rest-client'
 require 'json'
+
+set :database, 'sqlite3:users.sqlite3'
 
 CLIENT_ID = ENV['GH_BASIC_CLIENT_ID']
 CLIENT_SECRET = ENV['GH_BASIC_SECRET_ID']
