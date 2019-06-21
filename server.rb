@@ -75,7 +75,44 @@ get '/callback' do
                             :accept => :json)
 
   # extract the token
-  session[:access_token] = JSON.parse(result)['access_token']
+  access_token = JSON.parse(result)['access_token']
+
+  # save the token to a session
+  session[:access_token] = access_token
+
+  # get a user using the valid token
+  auth_result = RestClient.get('https://api.github.com/user',
+                               {:params => {:access_token => access_token},
+                                :accept => :json})
+
+  # check the list of current scopes
+  if auth_result.headers.include? :x_oauth_scopes
+    scopes = auth_result.headers[:x_oauth_scopes].split(', ')
+  else
+    scopes = []
+  end
+
+  user = JSON.parse(auth_result)
+
+  if scopes.include? 'user:email'
+    user['private_emails'] =
+        JSON.parse(RestClient.get('https://api.github.com/user/emails',
+                                  {:params => {:access_token => access_token},
+                                   :accept => :json}))
+  end
+
+  login = user['login']
+  email = user['email']
+  private_emails = user['private_emails']
+
+  # upsert the user to DB
+  user_in_db = User.find_or_create_by(login: login)
+  user_in_db.email = (!email.nil? && !email.empty?) ? email : nil
+  user_in_db.private_emails = (!private_emails.nil? && !private_emails.empty?) ? private_emails.map{ |private_email|
+    private_email['email']
+  }.join(', ') : nil
+
+  user_in_db.save
 
   redirect '/dashboard'
 end
