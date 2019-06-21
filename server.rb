@@ -23,9 +23,8 @@ get '/dashboard' do
   access_token = session[:access_token]
 
   begin
-    auth_result = RestClient.get('https://api.github.com/user',
-                                 {:params => {:access_token => access_token},
-                                  :accept => :json})
+    token_check_url = "https://api.github.com/applications/#{CLIENT_ID}/tokens/#{access_token}"
+    RestClient::Request.execute({method: :get, url: token_check_url, user: CLIENT_ID, password: CLIENT_SECRET})
   rescue => e
     # request didn't succeed because the token was revoked so we
     # invalidate the token stored in the session and redirect to
@@ -35,7 +34,12 @@ get '/dashboard' do
     redirect '/login'
   end
 
-  # the request succeeded, so we check the list of current scopes
+  # get a user using the valid token
+  auth_result = RestClient.get('https://api.github.com/user',
+                               {:params => {:access_token => access_token},
+                                :accept => :json})
+
+  # check the list of current scopes
   if auth_result.headers.include? :x_oauth_scopes
     scopes = auth_result.headers[:x_oauth_scopes].split(', ')
   else
