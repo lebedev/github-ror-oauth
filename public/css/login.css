@@ -1,0 +1,28 @@
+.github-login {
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-bottom-width: 2px;
+    border-radius: .5em;
+    color: #000;
+    display: block;
+    font-size: 1.25em;
+    line-height: 1.5em;
+    margin-bottom: 10px;
+    max-width: 260px;
+    padding: .75em;
+    text-decoration: none;
+}
+
+.github-login:hover {
+    background-color: #f5f5f5;
+    opacity: .75;
+    transform: translateY(-1px);
+}
+
+.github-login img {
+    border: 0;
+    height: 1.5em;
+    margin-right: .5em;
+    vertical-align: middle;
+    width: 1.5em;
+}
