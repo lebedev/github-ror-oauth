@@ -20,8 +20,23 @@ get '/callback' do
                             :code => session_code},
                             :accept => :json)
 
-  # extract the token
+  # extract the token and granted scopes
   access_token = JSON.parse(result)['access_token']
+  scopes = JSON.parse(result)['scope'].split(',')
 
-  puts access_token
+  # check if we were granted user:email scope
+  has_user_email_scope = scopes.include? 'user:email'
+
+  # fetch user information
+  user = JSON.parse(RestClient.get('https://api.github.com/user',
+                                   {:params => {:access_token => access_token}}))
+
+  # if the user authorized it, fetch private emails
+  if has_user_email_scope
+    user['private_emails'] =
+        JSON.parse(RestClient.get('https://api.github.com/user/emails',
+                                  {:params => {:access_token => access_token}}))
+  end
+
+  erb :dashboard, :locals => user
 end
