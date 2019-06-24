@@ -5,8 +5,53 @@ require 'json'
 CLIENT_ID = ENV['GH_BASIC_CLIENT_ID']
 CLIENT_SECRET = ENV['GH_BASIC_SECRET_ID']
 
+use Rack::Session::Pool, :cookie_only => false
+
+def authenticated?
+  session[:access_token]
+end
+
 get '/login' do
-  erb :login, :locals => {:client_id => CLIENT_ID}
+  if authenticated?
+    redirect '/dashboard'
+  else
+    erb :login, :locals => {:client_id => CLIENT_ID}
+  end
+end
+
+get '/dashboard' do
+  access_token = session[:access_token]
+
+  begin
+    auth_result = RestClient.get('https://api.github.com/user',
+                                 {:params => {:access_token => access_token},
+                                  :accept => :json})
+  rescue => e
+    # request didn't succeed because the token was revoked so we
+    # invalidate the token stored in the session and redirect to
+    # login page so that the user can start the OAuth flow again
+
+    session[:access_token] = nil
+    redirect '/login'
+  end
+
+  # the request succeeded, so we check the list of current scopes
+  if auth_result.headers.include? :x_oauth_scopes
+    scopes = auth_result.headers[:x_oauth_scopes].split(', ')
+  else
+    scopes = []
+  end
+
+  user = JSON.parse(auth_result)
+
+  if scopes.include? 'user:email'
+    user['private_emails'] =
+        JSON.parse(RestClient.get('https://api.github.com/user/emails',
+                                  {:params => {:access_token => access_token},
+                                   :accept => :json}))
+  end
+
+  erb :dashboard, :locals => user
 end
 
 get '/callback' do
@@ -20,23 +65,16 @@ get '/callback' do
                             :code => session_code},
                             :accept => :json)
 
-  # extract the token and granted scopes
-  access_token = JSON.parse(result)['access_token']
-  scopes = JSON.parse(result)['scope'].split(',')
+  # extract the token
+  session[:access_token] = JSON.parse(result)['access_token']
 
-  # check if we were granted user:email scope
-  has_user_email_scope = scopes.include? 'user:email'
+  redirect '/dashboard'
+end
 
-  # fetch user information
-  user = JSON.parse(RestClient.get('https://api.github.com/user',
-                                   {:params => {:access_token => access_token}}))
-
-  # if the user authorized it, fetch private emails
-  if has_user_email_scope
-    user['private_emails'] =
-        JSON.parse(RestClient.get('https://api.github.com/user/emails',
-                                  {:params => {:access_token => access_token}}))
+get '*' do
+  if authenticated?
+    redirect '/dashboard'
+  else
+    redirect '/login'
   end
-
-  erb :dashboard, :locals => user
 end
