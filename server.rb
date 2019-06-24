@@ -112,6 +112,10 @@ post '/logout' do
   logout
 end
 
+get '/error' do
+  erb :error
+end
+
 get '*' do
   if authenticated?
     redirect '/dashboard'
