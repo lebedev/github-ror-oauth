@@ -19,6 +19,13 @@ def logout
   redirect '/login'
 end
 
+def get_user(access_token)
+  # get a user using the valid token
+  RestClient.get('https://api.github.com/user',
+                 {:params => {:access_token => access_token},
+                  :accept => :json})
+end
+
 get '/login' do
   if authenticated?
     redirect '/dashboard'
@@ -41,10 +48,7 @@ get '/dashboard' do
     logout
   end
 
-  # get a user using the valid token
-  auth_result = RestClient.get('https://api.github.com/user',
-                               {:params => {:access_token => access_token},
-                                :accept => :json})
+  auth_result = get_user(access_token)
 
   login = JSON.parse(auth_result)['login']
 
@@ -70,10 +74,7 @@ get '/callback' do
   # save the token to a session
   session[:access_token] = access_token
 
-  # get a user using the valid token
-  auth_result = RestClient.get('https://api.github.com/user',
-                               {:params => {:access_token => access_token},
-                                :accept => :json})
+  auth_result = get_user(access_token)
 
   # check the list of current scopes
   if auth_result.headers.include? :x_oauth_scopes
