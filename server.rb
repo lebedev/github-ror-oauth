@@ -14,16 +14,26 @@ def authenticated?
   session[:access_token]
 end
 
-def logout
-  session[:access_token] = nil
-  redirect '/login'
+def with_error_handling(should_logout_on_404 = false)
+  yield
+rescue RestClient::Exception => e
+  if should_logout_on_404 and e.http_code.to_i === 404
+    # request didn't succeed because the token was revoked so we
+    # invalidate the token stored in the session and redirect to
+    # error page so that the user can start the OAuth flow again
+
+    session[:access_token] = nil
+  end
+  redirect '/error'
 end
 
 def get_user(access_token)
   # get a user using the valid token
-  RestClient.get('https://api.github.com/user',
-                 {:params => {:access_token => access_token},
-                  :accept => :json})
+  with_error_handling do
+    RestClient.get('https://api.github.com/user',
+                   {:params => {:access_token => access_token},
+                    :accept => :json})
+  end
 end
 
 get '/login' do
@@ -37,15 +47,9 @@ end
 get '/dashboard' do
   access_token = session[:access_token]
 
-  begin
+  with_error_handling(true) do
     token_check_url = "https://api.github.com/applications/#{CLIENT_ID}/tokens/#{access_token}"
     RestClient::Request.execute({method: :get, url: token_check_url, user: CLIENT_ID, password: CLIENT_SECRET})
-  rescue => e
-    # request didn't succeed because the token was revoked so we
-    # invalidate the token stored in the session and redirect to
-    # login page so that the user can start the OAuth flow again
-
-    logout
   end
 
   auth_result = get_user(access_token)
@@ -62,11 +66,13 @@ get '/callback' do
   session_code = request.env['rack.request.query_hash']['code']
 
   # ... and POST it back to GitHub
-  result = RestClient.post('https://github.com/login/oauth/access_token',
-                           {:client_id => CLIENT_ID,
-                            :client_secret => CLIENT_SECRET,
-                            :code => session_code},
-                            :accept => :json)
+  result = with_error_handling do
+    RestClient.post('https://github.com/login/oauth/access_token',
+                    {:client_id => CLIENT_ID,
+                     :client_secret => CLIENT_SECRET,
+                     :code => session_code},
+                     :accept => :json)
+  end
 
   # extract the token
   access_token = JSON.parse(result)['access_token']
@@ -86,10 +92,11 @@ get '/callback' do
   user = JSON.parse(auth_result)
 
   if scopes.include? 'user:email'
-    user['private_emails'] =
-        JSON.parse(RestClient.get('https://api.github.com/user/emails',
-                                  {:params => {:access_token => access_token},
-                                   :accept => :json}))
+    user['private_emails'] = with_error_handling do
+      JSON.parse(RestClient.get('https://api.github.com/user/emails',
+                                {:params => {:access_token => access_token},
+                                 :accept => :json}))
+    end
   end
 
   login = user['login']
@@ -109,7 +116,8 @@ get '/callback' do
 end
 
 post '/logout' do
-  logout
+  session[:access_token] = nil
+  redirect '/login'
 end
 
 get '/error' do
