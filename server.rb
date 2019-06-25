@@ -44,23 +44,11 @@ get '/dashboard' do
                                {:params => {:access_token => access_token},
                                 :accept => :json})
 
-  # check the list of current scopes
-  if auth_result.headers.include? :x_oauth_scopes
-    scopes = auth_result.headers[:x_oauth_scopes].split(', ')
-  else
-    scopes = []
-  end
+  login = JSON.parse(auth_result)['login']
 
-  user = JSON.parse(auth_result)
+  user = User.find_by(login: login)
 
-  if scopes.include? 'user:email'
-    user['private_emails'] =
-        JSON.parse(RestClient.get('https://api.github.com/user/emails',
-                                  {:params => {:access_token => access_token},
-                                   :accept => :json}))
-  end
-
-  erb :dashboard, :locals => user
+  erb :dashboard, :locals => user.as_json
 end
 
 get '/callback' do
